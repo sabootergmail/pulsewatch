@@ -14,8 +14,9 @@ const baseURL = `http://localhost:${PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
-  timeout: 30_000,
+  timeout: 60_000,
   fullyParallel: false, // serialized — single dev server + shared SQLite test DB
+  workers: 1, // 4 parallel workers overwhelm the dev server's cold compilation under webpack
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["html", { open: "never" }], ["list"]] : "list",
