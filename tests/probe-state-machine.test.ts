@@ -20,7 +20,10 @@ vi.mock("../src/lib/db", () => ({
   },
 }));
 vi.mock("../src/lib/audit", () => ({ audit: vi.fn().mockResolvedValue(undefined) }));
-vi.mock("../src/lib/notify", () => ({ notify: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("../src/lib/notify", () => ({
+  notify: vi.fn().mockResolvedValue(undefined),
+  notifyBeeceptor: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock("../src/lib/log", () => ({
   log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn(), child: vi.fn(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() })) },
   logWith: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),

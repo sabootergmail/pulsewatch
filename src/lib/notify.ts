@@ -1,4 +1,5 @@
 import { log } from "./log";
+import { audit } from "./audit";
 
 export type NotifyEvent =
   | "incident.open"
@@ -60,5 +61,73 @@ export async function notify(event: NotifyEvent, payload: NotifyPayload): Promis
     }
   } catch (err) {
     log.warn({ event, err: err instanceof Error ? err.message : String(err) }, "notify threw");
+  }
+}
+
+export type BeeceptorMonitor = {
+  id: string;
+  name: string;
+  url: string;
+};
+
+export type BeeceptorIncident = {
+  id: string;
+  cause: string | null;
+  startedAt: Date;
+};
+
+/**
+ * Fire-and-forget webhook to Beeceptor (or any HTTP inspection endpoint).
+ * POSTs a structured JSON payload for every `incident.open` event.
+ * If BEECEPTOR_HOOK_URL is unset this is a no-op — never throws.
+ */
+export async function notifyBeeceptor(
+  monitor: BeeceptorMonitor,
+  incident: BeeceptorIncident,
+): Promise<void> {
+  const hookUrl = process.env.BEECEPTOR_HOOK_URL;
+  if (!hookUrl) return;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 3000);
+
+  const body = JSON.stringify({
+    event: "incident.open",
+    monitor: { id: monitor.id, name: monitor.name, url: monitor.url },
+    incident: {
+      id: incident.id,
+      cause: incident.cause,
+      startedAt: incident.startedAt.toISOString(),
+    },
+    timestamp: new Date().toISOString(),
+  });
+
+  try {
+    const res = await fetch(hookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      signal: controller.signal,
+    });
+    if (res.ok) {
+      await audit({
+        action: "incident.webhook_sent",
+        entityType: "Incident",
+        entityId: incident.id,
+        metadata: { monitorId: monitor.id, hookUrl },
+      });
+    } else {
+      log.warn(
+        { hookUrl, status: res.status },
+        "notifyBeeceptor: non-2xx response",
+      );
+    }
+  } catch (err) {
+    log.warn(
+      { hookUrl, err: err instanceof Error ? err.message : String(err) },
+      "notifyBeeceptor: request failed or timed out",
+    );
+  } finally {
+    clearTimeout(timer);
   }
 }

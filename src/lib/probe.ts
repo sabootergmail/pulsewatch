@@ -1,6 +1,6 @@
 import { prisma } from "./db";
 import { audit } from "./audit";
-import { notify } from "./notify";
+import { notify, notifyBeeceptor } from "./notify";
 import { logWith } from "./log";
 
 export type ProbeResult = {
@@ -103,6 +103,7 @@ export async function runProbeForMonitor(monitorId: string) {
         { name: "Got", value: result.httpStatus ? `HTTP ${result.httpStatus}` : "no response" },
       ],
     });
+    await notifyBeeceptor(monitor, incident);
   } else if (newStatus === "up" && openIncident) {
     await prisma.incident.update({
       where: { id: openIncident.id },
