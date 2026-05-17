@@ -80,7 +80,7 @@
 
 ## Co je v repu (✅ dodáno)
 
-Monitoring + incidenty + append-only audit (vynucený na Prisma layer); kanban + tickety; release_approval s **dvoukrokovým Approve & deploy** (PR diff link + checkbox); GUI rollback L1/L2/L3 (L3 otevírá revert PR přes GitHub API); REST `/api/tickets` + `/api/audit` s Bearer auth; PR-merge webhook s HMAC verifikací zavírá smyčku z GitHub strany; 4 agent role v `.claude/agents/` (Architect → Implementer → Reviewer → Release/Ops) s file-based handoff a 1-retry capem; 4 workflowy (`ci`, `claude`, `probe`, `release-verify` — release-verify dělá `npm version` + git tag + GitHub Release); **NextAuth + GitHub OAuth + single-user allowlist + `@claude` actor gate**; **Turso adapter auto-aktivní podle `TURSO_DATABASE_URL`** + Turso migration/inspection skripty; MCP server (3 tools, stdio); Pino strukturované logy + Discord stub + **Beeceptor webhook na `incident.open`** (fire-and-forget); check retention cron; agent performance dashboard; **První ostrý multi-agent loop proběhl end-to-end** — task `cmpa1avwl…` má v `.claude/work/` Architectův `spec.md` i Reviewerův `review.md`, Implementer commit `feat(notify): Beeceptor webhook`, PR #2 mergnutý přes „Approve & deploy" gate.
+Monitoring + incidenty + append-only audit (vynucený na Prisma layer); kanban + tickety; release_approval s **dvoukrokovým Approve & deploy** (PR diff link + checkbox); GUI rollback L1/L2/L3 (L3 otevírá revert PR přes GitHub API); REST `/api/tickets` + `/api/audit` s Bearer auth; PR-merge webhook s HMAC verifikací zavírá smyčku z GitHub strany; 4 agent role v `.claude/agents/` (Architect → Implementer → Reviewer → Release/Ops) s file-based handoff a 1-retry capem; 4 workflowy (`ci`, `claude`, `probe`, `release-verify` — release-verify dělá `npm version` + git tag + GitHub Release); **NextAuth + GitHub OAuth + single-user allowlist + `@claude` actor gate**; **Turso libSQL v produkci** — adapter auto-aktivní podle `TURSO_DATABASE_URL`, DB provisionovaná a env vars na Vercelu set (perzistence dat napříč Vercel cold starty); Turso migration/inspection skripty; MCP server (3 tools, stdio); Pino strukturované logy + Discord stub + **Beeceptor webhook na `incident.open`** (fire-and-forget); check retention cron; agent performance dashboard; **První ostrý multi-agent loop proběhl end-to-end** — task `cmpa1avwl…` má v `.claude/work/` Architectův `spec.md` i Reviewerův `review.md`, Implementer commit `feat(notify): Beeceptor webhook`, PR #2 mergnutý přes „Approve & deploy" gate.
 
 **Test suite zelená lokálně:** 4 E2E spec (8 testů — auth, monitor lifecycle, release_approval lifecycle, task lifecycle) v Playwrightu + 7 Vitest souborů (34 testů) — probe state machine, audit append-only invariant, agent stats, API kontrakty, notify Beeceptor.
 
@@ -88,13 +88,12 @@ Monitoring + incidenty + append-only audit (vynucený na Prisma layer); kanban +
 
 ## Co je vědomě mimo tuto submission
 
-**Operační kroky (kód hotov, čeká na user-side provisioning):**
-- Turso DB provisioning — `turso db create` z CLI + 2 env vars na Vercel (bez nich `/tmp` ephemerální zápisy)
-- `vars.PROBE_URL` GH repo variable — bez ní `probe.yml` 5min cron nestřelí (Vercel cron daily je default na Hobby)
-- Reálný `DISCORD_WEBHOOK_URL` — kód funkční, no-op bez URL
-- `vars.RUN_E2E='1'` — pro spuštění Playwright suite v CI
-- Branch protection na `main` + Vercel deployment protection (UI klik)
-- GitHub webhook secret + nastavení webhooku na repu
+**Runtime provisioning, které ovlivňují live deploy:**
+- ⬜ Reálný `DISCORD_WEBHOOK_URL` — kód funkční, push notification pro člověka no-op bez URL (Beeceptor outbound sink je zapojen samostatně)
+- ⬜ Vercel deployment protection na preview deploye (UI klik)
+
+**Items, které se po archivaci repa staly moot:**
+- `vars.PROBE_URL`, `vars.RUN_E2E='1'`, branch protection na `main`, GitHub webhook setup — všechno by dávalo smysl pro živý vývoj proti otevřenému repu. Archived repo neprouští workflowy ani nemerguje, takže tyto kroky pro tento snapshot ztrácí účel.
 
 **Vývoj nad rámec submission scope:**
 - Self-monitor seed row — chybí v `prisma/seed.ts`, tvrzení „PulseWatch monitors its own prod" je tím v MVP zatím podloženo až po manuálním přidání monitoru
