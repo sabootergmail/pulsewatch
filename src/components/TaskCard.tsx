@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { formatRelative } from "@/lib/formatters";
 import { updateTaskStatus, delegateToClaude } from "@/lib/tasks";
-import { approveRelease } from "@/lib/release";
+import { ApproveReleaseForm } from "./ApproveReleaseForm";
 
 type Task = {
   id: string;
@@ -119,11 +119,7 @@ export function TaskCard({ task }: { task: Task }) {
 
       <div className="flex items-center gap-1 pt-1 flex-wrap">
         {isRelease && task.status !== "approved" && task.status !== "done" && task.status !== "rolled_back" ? (
-          <form action={approveRelease.bind(null, task.id)}>
-            <button className="text-[11px] px-2.5 py-1 rounded bg-violet-600 text-white hover:bg-violet-700 font-medium">
-              ✓ Approve &amp; deploy
-            </button>
-          </form>
+          <ApproveReleaseForm taskId={task.id} prUrl={task.githubPrUrl} />
         ) : isRollback ? (
           <span className="text-[11px] text-red-700">rolled back</span>
         ) : (

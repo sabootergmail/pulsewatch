@@ -212,13 +212,29 @@ outage obvious.
 
 ## What's deliberately out of scope (and why)
 
-- **Multi-user auth** — the spec asked for an MVP in 1 hour. Adding NextAuth
-  doubles the surface area without changing what's being judged.
-- **Notification fan-out (Slack/email/PagerDuty)** — the audit log + dashboard
-  show incidents immediately; integrations are a stub away (one server
-  function in `lib/notify.ts` would do it).
-- **Postgres** — schema is identical; flip `provider` in `schema.prisma` and
-  the adapter import in `lib/db.ts`.
+- **Multi-user RBAC** — single-user MVP. Auth itself is implemented
+  (NextAuth + GitHub OAuth with allowlist via `ALLOWED_GITHUB_LOGINS`); the
+  pieces above this point — teams, per-resource permissions — are not.
+- **Notification fan-out (Slack/email/PagerDuty)** — Discord webhook is
+  implemented in `lib/notify.ts`; additional channels are one function each.
+- **Postgres** — schema is identical; flip `provider` in `schema.prisma`
+  and the adapter import in `lib/db.ts` (Turso auto-detection wired —
+  set `TURSO_DATABASE_URL` and the runtime picks LibSQL automatically).
+
+## Authentication
+
+Public surfaces: `/api/health`, `/api/probe` (Bearer `PROBE_SECRET`),
+`/api/tickets` (Bearer `TICKETS_API_TOKEN`), `/api/webhooks/*` (HMAC
+verified), `/api/auth/*`, `/login`.
+
+Everything else (dashboard, tasks, monitors, audit, releases, server
+actions) requires a NextAuth session whose GitHub `login` is in
+`ALLOWED_GITHUB_LOGINS` (comma-separated). Non-allowlisted users get
+`AccessDenied` at the OAuth callback and never receive a session.
+
+Required env vars on Vercel + locally: `AUTH_SECRET` (`openssl rand -base64
+32`), `AUTH_GITHUB_ID` + `AUTH_GITHUB_SECRET` (from a GitHub OAuth App
+registered at github.com/settings/developers), `ALLOWED_GITHUB_LOGINS`.
 
 ## AI velocity (what this pipeline buys you)
 

@@ -29,11 +29,17 @@ on:
 
 jobs:
   orchestrator:
+    # Security gate (pozadavky #10 bod 4): only the repo owner can fire the
+    # agent. Any third-party @claude mention is ignored. Without this anyone
+    # opening a GitHub issue can spend your Anthropic quota and ship code
+    # through your release pipeline.
     if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude') || contains(github.event.issue.labels.*.name, 'claude'))) ||
-      (github.event_name == 'pull_request' && contains(github.event.pull_request.body, '@claude'))
+      github.actor == 'sabootergmail' && (
+        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude') || contains(github.event.issue.labels.*.name, 'claude'))) ||
+        (github.event_name == 'pull_request' && contains(github.event.pull_request.body, '@claude'))
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:

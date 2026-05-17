@@ -60,17 +60,14 @@ Claude*, the system extends itself in prod within minutes.
 
 ## What I cut, and why
 
-- **Auth** — single-user MVP; adding NextAuth doesn't change what's being
-  evaluated.
-- **Turso DB swap** — `DR.md` documents it (PITR, restore drill); the
-  Prisma adapter swap is one file. Held back behind a Turso account
-  provisioning step that needs the user. SQLite snapshot is hydrated to
-  `/tmp` on cold start for the demo.
+- **Multi-user RBAC** — single-user auth is implemented (NextAuth + GitHub
+  OAuth + `ALLOWED_GITHUB_LOGINS` allowlist + `@claude` actor restriction
+  in the workflow). Teams and per-resource permissions are out of scope.
+- **Turso provisioning** — the Prisma adapter swap is wired (`lib/db.ts`
+  auto-detects `TURSO_DATABASE_URL`); only the actual Turso DB creation
+  needs a user CLI session. SQLite snapshot to `/tmp` is the dev fallback.
 - **Drag-and-drop kanban** — status dropdown is enough; D&D doesn't change
   the agent loop.
-- **GitHub webhook for PR-merge → task-done** — would close the loop
-  automatically; the demo is legible with Release/Ops closing the task via
-  REST after smoke test. Webhook is a candidate task to delegate.
 
 ## Why the result still looks human-made
 

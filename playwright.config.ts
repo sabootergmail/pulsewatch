@@ -41,6 +41,16 @@ export default defineConfig({
       PROBE_SECRET: "e2e-secret",
       TICKETS_API_TOKEN: "e2e-token",
       NODE_ENV: "development",
+      // Per src/middleware.ts: bypass NextAuth in dev test runs so the
+      // existing Playwright suite doesn't need an OAuth dance. Gated on
+      // NODE_ENV!=production in middleware, so this can't accidentally
+      // leak into Vercel prod.
+      E2E_AUTH_BYPASS: "1",
+      // Stubs so NextAuth can initialise without real credentials.
+      AUTH_SECRET: "e2e-test-secret-not-for-prod",
+      AUTH_GITHUB_ID: "e2e-stub",
+      AUTH_GITHUB_SECRET: "e2e-stub",
+      ALLOWED_GITHUB_LOGINS: "e2e-tester",
     },
   },
 });
