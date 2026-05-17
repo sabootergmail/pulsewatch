@@ -1,0 +1,17 @@
+{
+  "name": "@pulsewatch/mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Model Context Protocol server exposing PulseWatch's ticketing surface to LLM clients (Claude Desktop, etc.)",
+  "type": "module",
+  "main": "server.mjs",
+  "bin": {
+    "pulsewatch-mcp": "server.mjs"
+  },
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  }
+}

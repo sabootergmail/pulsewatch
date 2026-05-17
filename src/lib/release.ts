@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "./db";
 import { audit } from "./audit";
+import { notify } from "./notify";
+import { logWith } from "./log";
 
 /**
  * Create a release_approval task. Called by the agent (claude-code-action)
@@ -149,6 +151,16 @@ export async function approveRelease(id: string) {
     metadata: { prNumber: task.githubPrNumber },
   });
 
+  logWith({ event: "release.merge", ticket_id: id, role: "release-ops" }).info(
+    { pr: task.githubPrNumber },
+    "release merged",
+  );
+  await notify("release.merge", {
+    title: `🚀 Released: ${task.title}`,
+    description: task.summary ?? undefined,
+    url: task.githubPrUrl ?? undefined,
+  });
+
   revalidatePath("/tasks");
   revalidatePath(`/tasks/${id}`);
 }
@@ -201,6 +213,15 @@ export async function recordRollback(input: {
     entityId: input.releaseTaskId,
     actor: "agent:claude",
     metadata: { reason: input.reason, rollbackTicketId: rollbackTicket.id },
+  });
+
+  logWith({ event: "release.rollback", ticket_id: input.releaseTaskId, role: "release-ops" }).error(
+    { reason: input.reason },
+    "autonomous rollback executed",
+  );
+  await notify("release.rollback", {
+    title: `↩ Rolled back: ${release.title}`,
+    description: input.reason,
   });
 
   revalidatePath("/tasks");

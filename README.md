@@ -93,13 +93,15 @@ curl -H "Authorization: Bearer dev-secret-change-me" http://localhost:3000/api/p
 | Layer        | Choice                                  | Why                                                 |
 | ------------ | --------------------------------------- | --------------------------------------------------- |
 | Framework    | Next.js 16 (App Router, RSC, Actions)   | One repo, one deploy, type-safe data flow           |
-| Database     | SQLite via Prisma 7 + better-sqlite3    | Zero-ops for MVP; swap to Postgres by changing one line |
+| Database     | SQLite (dev) → **Turso (LibSQL) in prod** via Prisma 7 driver adapters | Same Prisma schema both sides; Turso adds PITR + persistence on Vercel |
 | Styling      | Tailwind v4                             | Fast UI iteration                                   |
 | Validation   | Zod                                     | Single source of truth on the action boundary       |
 | Testing      | Vitest                                  | BDD-style specs against the probe contract         |
 | Deployment   | Vercel + Vercel Cron                    | One command from `main`                             |
 | Monitoring   | `/api/health` endpoint + audit log      | Self-observable                                     |
-| AI runtime   | `anthropics/claude-code-action` on GHA  | Triggered by `@claude` in issues/PR comments        |
+| AI runtime   | `anthropics/claude-code-action` on GHA, **4-role multi-agent pipeline** | Architect → Implementer → Reviewer → Release/Ops with file-based handoff |
+| Logging      | Pino (JSON in prod, pretty-print in dev) | Structured log entries with `ticket_id`, `role`, `event` |
+| Alerting     | Discord webhook (`DISCORD_WEBHOOK_URL`) | Triggers on incident open/resolve, rollback, release approved |
 
 ## Architecture in one diagram
 
@@ -217,6 +219,54 @@ outage obvious.
   function in `lib/notify.ts` would do it).
 - **Postgres** — schema is identical; flip `provider` in `schema.prisma` and
   the adapter import in `lib/db.ts`.
+
+## AI velocity (what this pipeline buys you)
+
+Rough orientation, not benchmarks. Numbers are typical for this repo's
+ticket sizes and are honest about overhead (the agent spends real wall-clock
+time reading the codebase, running tests, etc.).
+
+| Phase                         | Typical human time | Agent pipeline time |
+|-------------------------------|--------------------|---------------------|
+| Spec + design                 | 2–4 h              | < 2 min             |
+| Implementation of MVP feature | 4–8 h              | 5–15 min            |
+| Code review                   | 30–60 min          | < 1 min             |
+| Release tag + smoke test      | 15–30 min          | < 2 min             |
+| Rollback on bad deploy        | 5–30 min, manual   | < 30 s, autonomous  |
+
+What this **doesn't** buy: judgment about *what* to build, scope
+trade-offs, whether a refactor is worth the disruption. Those still belong
+to the human who files the ticket — and to the user clicking "Approve & deploy".
+
+## Extending via MCP
+
+PulseWatch also exposes its ticketing surface as a Model Context Protocol
+server in `mcp/`. Tools:
+
+- `list_tickets(filter?)` — returns the current backlog / in-progress / done
+- `create_ticket({ title, body, type })` — files a new task
+- `get_audit_log({ since?, ticket_id? })` — pulls audit entries
+
+Plug it into Claude Desktop by adding this to your config:
+
+```jsonc
+{
+  "mcpServers": {
+    "pulsewatch": {
+      "command": "node",
+      "args": ["/absolute/path/to/pulsewatch/mcp/server.mjs"],
+      "env": {
+        "PULSEWATCH_URL": "https://pulsewatch-sigma.vercel.app",
+        "TICKETS_API_TOKEN": "your-token-here"
+      }
+    }
+  }
+}
+```
+
+The MCP server is parallel to the REST API at `/api/tickets`. REST is the
+agent pipeline's primary channel (per pozadavky #4); MCP is for ad-hoc
+LLM clients (e.g., a Claude Desktop session asking about PulseWatch state).
 
 ## AI-first build notes
 

@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -41,6 +42,10 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# MCP server has its own node_modules
+/mcp/node_modules
+/mcp/package-lock.json
 
 # SQLite dev DB (at project root via DATABASE_URL=file:./dev.db)
 /dev.db

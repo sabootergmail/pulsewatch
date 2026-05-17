@@ -2,12 +2,14 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { StatusBadge } from "@/components/StatusBadge";
 import { LatencySparkline } from "@/components/LatencySparkline";
+import { AgentPerformance } from "@/components/AgentPerformance";
 import { formatRelative, uptimePercentage } from "@/lib/formatters";
+import { getAgentStats } from "@/lib/agentStats";
 
 export const dynamic = "force-dynamic";
 
 export default async function Dashboard() {
-  const [monitors, taskCounts] = await Promise.all([
+  const [monitors, taskCounts, agentStats] = await Promise.all([
     prisma.monitor.findMany({
       orderBy: { createdAt: "asc" },
       include: {
@@ -16,6 +18,7 @@ export default async function Dashboard() {
       },
     }),
     prisma.task.groupBy({ by: ["status"], _count: { _all: true } }),
+    getAgentStats(),
   ]);
 
   const totalMonitors = monitors.length;
@@ -36,14 +39,19 @@ export default async function Dashboard() {
         </p>
       </section>
 
-      <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        <StatCard label="Monitors" value={totalMonitors} />
-        <StatCard label="Operational" value={upCount} tone="up" />
-        <StatCard label="Down" value={downCount} tone="down" />
-        <StatCard label="Open incidents" value={openIncidents} tone={openIncidents > 0 ? "down" : "neutral"} />
-        <StatCard label="Tasks: backlog" value={tasksOpen} />
-        <StatCard label="Tasks: in progress" value={tasksInProgress} tone={tasksInProgress > 0 ? "up" : "neutral"} />
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium text-zinc-700 uppercase tracking-wide">Service monitoring</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          <StatCard label="Monitors" value={totalMonitors} />
+          <StatCard label="Operational" value={upCount} tone="up" />
+          <StatCard label="Down" value={downCount} tone="down" />
+          <StatCard label="Open incidents" value={openIncidents} tone={openIncidents > 0 ? "down" : "neutral"} />
+          <StatCard label="Tasks: backlog" value={tasksOpen} />
+          <StatCard label="Tasks: in progress" value={tasksInProgress} tone={tasksInProgress > 0 ? "up" : "neutral"} />
+        </div>
       </section>
+
+      <AgentPerformance stats={agentStats} />
 
       <section>
         <div className="bg-white rounded-lg border border-zinc-200 overflow-hidden">

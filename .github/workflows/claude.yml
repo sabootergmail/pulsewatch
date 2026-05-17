@@ -1,11 +1,21 @@
 name: claude
 
-# AI-first development loop.
-# Triggered when @claude is mentioned in an issue/PR comment OR when an issue
-# is opened with the "claude" label. Claude Code Action runs in the GH Actions
-# runner, opens a PR against main. Vercel auto-deploys preview from the PR
-# branch; merging deploys to prod. This workflow is what makes pulsewatch
-# self-extending — it's the demo, not just a CI add-on.
+# Multi-agent orchestrator (pozadavky #4).
+#
+# Top-level claude-code-action runs as the Orchestrator. It reads
+# `.claude/agents/{architect,implementer,reviewer,release-ops}.md` and
+# spawns them as subagents via the Task tool, sequentially:
+#
+#   1. Architect  → `.claude/work/<id>/spec.md`
+#   2. Implementer → code + tests + CHANGELOG + PR
+#   3. Reviewer    → `.claude/work/<id>/review.md`  (approve | request_changes)
+#   4. Orchestrator wraps up with a release_approval ticket via REST.
+#
+# Hard cap: Reviewer can request changes once; a second reject is escalated
+# to a `needs_human_review` release_approval rather than a third retry.
+# Release/Ops fires only after the user approves the release_approval —
+# that's the single human gate. Smoke test + autonomous rollback live in
+# `release-verify.yml`.
 
 on:
   issue_comment:
@@ -18,24 +28,52 @@ on:
     types: [opened, synchronize]
 
 jobs:
-  claude:
+  orchestrator:
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude') || contains(github.event.issue.labels.*.name, 'claude'))) ||
       (github.event_name == 'pull_request' && contains(github.event.pull_request.body, '@claude'))
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write
       pull-requests: write
       issues: write
       id-token: write
+    env:
+      PULSEWATCH_URL: https://pulsewatch-sigma.vercel.app
+      TICKETS_API_TOKEN: ${{ secrets.TICKETS_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Run Claude Code
+      - name: Run Claude Code (orchestrator)
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            You are the **Orchestrator** in PulseWatch's 4-role multi-agent
+            pipeline. The other roles live in `.claude/agents/*.md` and are
+            available to you as subagents (Task tool). Run them sequentially:
+
+              1. Spawn `architect` with the ticket context → produces spec.md
+              2. Spawn `implementer` with the spec → produces code + tests + PR
+              3. Spawn `reviewer` with the PR diff + spec → produces review.md
+              4. If reviewer = approve, file a release_approval ticket via REST:
+
+                 curl -s -X POST "$PULSEWATCH_URL/api/tickets" \
+                   -H "Authorization: Bearer $TICKETS_API_TOKEN" \
+                   -H "Content-Type: application/json" \
+                   -d '{"action":"request_release","title":"...","summary":"...","prUrl":"...","prNumber":N,"previewUrl":"...","relatedTaskId":"..."}'
+
+              5. If reviewer = request_changes, spawn `implementer` once more
+                 with `review.md` as additional input. If the second pass is
+                 also rejected, file a release_approval with the title prefix
+                 `[NEEDS HUMAN REVIEW]` and stop.
+
+            Every role transition gets an audit log entry via REST
+            ({"action":"update","id":"...","summary":"handoff: <from>→<to>"}).
+            Never push to main. Never call vercel rollback (that's the
+            release-verify workflow's job).

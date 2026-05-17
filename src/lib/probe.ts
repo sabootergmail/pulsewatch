@@ -1,5 +1,7 @@
 import { prisma } from "./db";
 import { audit } from "./audit";
+import { notify } from "./notify";
+import { logWith } from "./log";
 
 export type ProbeResult = {
   ok: boolean;
@@ -88,6 +90,19 @@ export async function runProbeForMonitor(monitorId: string) {
       entityId: incident.id,
       metadata: { monitorId: monitor.id, cause: incident.cause },
     });
+    logWith({ event: "incident.open", monitor_id: monitor.id, incident_id: incident.id }).warn(
+      { cause: incident.cause },
+      "incident opened",
+    );
+    await notify("incident.open", {
+      title: `🔴 ${monitor.name} is down`,
+      description: incident.cause ?? "(no cause recorded)",
+      url: monitor.url,
+      fields: [
+        { name: "Expected", value: `${monitor.method} → ${monitor.expectedStatus}` },
+        { name: "Got", value: result.httpStatus ? `HTTP ${result.httpStatus}` : "no response" },
+      ],
+    });
   } else if (newStatus === "up" && openIncident) {
     await prisma.incident.update({
       where: { id: openIncident.id },
@@ -98,6 +113,14 @@ export async function runProbeForMonitor(monitorId: string) {
       entityType: "Incident",
       entityId: openIncident.id,
       metadata: { monitorId: monitor.id },
+    });
+    logWith({ event: "incident.resolve", monitor_id: monitor.id, incident_id: openIncident.id }).info(
+      "incident resolved",
+    );
+    await notify("incident.resolve", {
+      title: `🟢 ${monitor.name} recovered`,
+      description: `Resolved after ${Math.round((Date.now() - openIncident.startedAt.getTime()) / 1000)}s`,
+      url: monitor.url,
     });
   }
 
