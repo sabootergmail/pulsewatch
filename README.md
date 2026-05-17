@@ -1,13 +1,15 @@
 # PulseWatch
 
-> Lightweight uptime monitoring with incident tracking, audit logs, and a
-> dashboard you can hand to a non-engineer.
+> A self-extending operational tool. Half Trello (the **Task** board), half
+> Betterstack (uptime monitors, incidents, audit log). The two halves are
+> wired together: a task in the backlog can be **delegated to Claude** —
+> Claude Code Action implements it, opens a PR, Vercel previews the change,
+> merging deploys to prod. PulseWatch monitors its own production.
 
-Built as a 1-hour AI-first challenge for **abletocompete.ai**. The point isn't
-to out-feature Betterstack — it's to show how much production-shaped surface
-area an AI-orchestrated developer can lay down in a single sitting:
-data model, monitoring engine, dashboards, incidents, audit log, tests, CI,
-disaster-recovery heartbeat, and deployment.
+Built as an AI-first challenge for **abletocompete.ai**. The thing being
+demonstrated isn't the dashboard — it's the **task → PR → deploy loop**
+where the agent extends the product itself. The dashboard is just the
+substrate that holds the backlog and watches the result.
 
 [**Live demo →**](https://pulsewatch-sigma.vercel.app) · [Architecture](./ARCHITECTURE.md) · [One-pager](./ONE_PAGER.md) · [GitHub](https://github.com/sabootergmail/pulsewatch)
 
@@ -22,17 +24,49 @@ disaster-recovery heartbeat, and deployment.
 
 ## What it does
 
-- **Watches HTTP endpoints** on a configurable interval (10s — 1h)
-- **Records every check** — status, HTTP code, latency, error
-- **Opens incidents** automatically when a monitor goes down, **resolves**
-  them when it recovers
-- **Audit log** of every privileged action (CRUD, pause, probe runs, incident
-  lifecycle) — append-only, designed for post-incident review
-- **Dashboard** with uptime %, latency sparkline, and a Betterstack-style
-  status table
-- **Disaster-recovery heartbeat**: a GitHub Actions cron pings the prod probe
-  endpoint as a second-source scheduler, so a Vercel-side outage can't silently
-  freeze monitoring
+**Task management (the Trello half)**
+- Kanban board: backlog · in progress · done
+- Each task has title, description, priority, GitHub issue/PR links
+- **Delegate to Claude** button opens a GitHub issue with `@claude`, which
+  triggers `.github/workflows/claude.yml` — Claude Code Action implements it,
+  opens a PR, Vercel previews it, merge deploys to prod
+- Every action lands in the audit log
+
+**Operational reliability (the Betterstack half)**
+- Watches HTTP endpoints on a configurable interval (10s — 1h)
+- Records every check — status, HTTP code, latency, error
+- Opens incidents automatically when a monitor goes down, resolves them when
+  it recovers
+- Audit log of every privileged action (CRUD, pause, probe runs, incident
+  lifecycle, task lifecycle) — append-only, designed for post-incident review
+- Dashboard with uptime %, latency sparkline, status table
+- **Disaster-recovery heartbeat**: GitHub Actions cron pings the prod probe
+  endpoint as a second-source scheduler, so a Vercel-side outage can't
+  silently freeze monitoring
+
+## The demo loop (this is the actual product)
+
+```
+user opens /tasks/new
+    │ writes "Export audit log to CSV"
+    ▼
+user clicks "Delegate to Claude 🤖"
+    │ server action POSTs to GitHub /issues with @claude in the body
+    ▼
+.github/workflows/claude.yml triggers (issue opened, @claude mention)
+    │ runs anthropics/claude-code-action on a GH Actions runner
+    ▼
+agent reads the task, implements it, opens a PR against main
+    │ Vercel auto-builds a preview deploy from the PR branch
+    ▼
+human reviews the PR, merges
+    │ Vercel deploys to prod
+    ▼
+PulseWatch's own monitors verify prod is healthy
+    │ /api/health returns ok; audit log records the deploy chain
+    ▼
+task transitions to "done"
+```
 
 ## Quick start
 
@@ -65,6 +99,7 @@ curl -H "Authorization: Bearer dev-secret-change-me" http://localhost:3000/api/p
 | Testing      | Vitest                                  | BDD-style specs against the probe contract         |
 | Deployment   | Vercel + Vercel Cron                    | One command from `main`                             |
 | Monitoring   | `/api/health` endpoint + audit log      | Self-observable                                     |
+| AI runtime   | `anthropics/claude-code-action` on GHA  | Triggered by `@claude` in issues/PR comments        |
 
 ## Architecture in one diagram
 
@@ -101,7 +136,10 @@ curl -H "Authorization: Bearer dev-secret-change-me" http://localhost:3000/api/p
 ```
 src/
   app/
-    page.tsx                 — dashboard (status overview)
+    page.tsx                 — dashboard (monitors + task counters)
+    tasks/page.tsx           — kanban board (the Trello half)
+    tasks/new/page.tsx       — create a task to feed Claude
+    tasks/[id]/page.tsx      — task detail + audit trail
     monitors/new/page.tsx    — create monitor (server action)
     monitors/[id]/page.tsx   — detail: metrics, incidents, audit
     incidents/page.tsx       — incident inbox
@@ -111,21 +149,44 @@ src/
   lib/
     db.ts                    — Prisma client singleton
     probe.ts                 — HTTP probe + incident state machine
-    actions.ts               — server actions (CRUD + probe-now)
+    actions.ts               — server actions (monitor CRUD + probe-now)
+    tasks.ts                 — server actions (task CRUD + delegateToClaude)
     audit.ts                 — typed audit log writer
   components/
     StatusBadge.tsx
     LatencySparkline.tsx
+    TaskCard.tsx
 prisma/
-  schema.prisma              — Monitor / Check / Incident / AuditLog
+  schema.prisma              — Monitor / Check / Incident / Task / AuditLog
   seed.ts
 tests/
   probe.test.ts              — BDD specs for the probe contract
 .github/workflows/
   ci.yml                     — lint · test · build on every PR
   probe.yml                  — DR heartbeat (5-min external scheduler)
+  claude.yml                 — Claude Code Action: @claude → PR (the demo loop)
 vercel.json                  — Vercel Cron (1-min probe)
 ```
+
+## Enabling the demo loop (Claude Code Action)
+
+The `claude.yml` workflow needs an OAuth token from your Claude Max
+subscription (not an API key). One-time setup:
+
+1. Locally, run `claude setup-token` and follow the OAuth flow.
+2. Copy the token it prints.
+3. In the repo, **Settings → Secrets and variables → Actions → New repository
+   secret**, name it `CLAUDE_CODE_OAUTH_TOKEN`, paste the value.
+4. (Optional, for in-app delegation) Create a fine-grained personal access
+   token with `Issues: read+write` on this repo, add it to Vercel env vars as
+   `GITHUB_TOKEN` and `GITHUB_REPO=sabootergmail/pulsewatch`.
+
+Verify by opening a GitHub issue: `@claude make the dashboard page title bold`.
+Workflow run starts within ~10 s; a PR appears in 1–2 min.
+
+> **Token security.** Never commit tokens — GitHub scans pushes in real time
+> and leaked tokens are bot-harvested within minutes. Use GH Secrets and
+> Vercel env vars only.
 
 ## Operational details worth knowing
 

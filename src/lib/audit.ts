@@ -8,12 +8,17 @@ export type AuditAction =
   | "monitor.resume"
   | "incident.open"
   | "incident.resolve"
-  | "probe.run";
+  | "probe.run"
+  | "task.create"
+  | "task.update"
+  | "task.delete"
+  | "task.delegate"
+  | "task.complete";
 
 export type AuditEntry = {
   action: AuditAction;
   actor?: string;
-  entityType?: "Monitor" | "Incident" | "Check";
+  entityType?: "Monitor" | "Incident" | "Check" | "Task";
   entityId?: string;
   metadata?: Record<string, unknown>;
 };

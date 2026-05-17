@@ -22,14 +22,9 @@ export default function RootLayout({
             </Link>
             <nav className="flex items-center gap-5 text-sm text-zinc-600">
               <Link href="/" className="hover:text-zinc-900">Dashboard</Link>
+              <Link href="/tasks" className="hover:text-zinc-900">Tasks</Link>
               <Link href="/incidents" className="hover:text-zinc-900">Incidents</Link>
               <Link href="/audit" className="hover:text-zinc-900">Audit log</Link>
-              <Link
-                href="/monitors/new"
-                className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700"
-              >
-                + New monitor
-              </Link>
             </nav>
           </div>
         </header>

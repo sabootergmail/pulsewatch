@@ -7,18 +7,25 @@ import { formatRelative, uptimePercentage } from "@/lib/formatters";
 export const dynamic = "force-dynamic";
 
 export default async function Dashboard() {
-  const monitors = await prisma.monitor.findMany({
-    orderBy: { createdAt: "asc" },
-    include: {
-      checks: { orderBy: { checkedAt: "desc" }, take: 30 },
-      incidents: { where: { status: "open" } },
-    },
-  });
+  const [monitors, taskCounts] = await Promise.all([
+    prisma.monitor.findMany({
+      orderBy: { createdAt: "asc" },
+      include: {
+        checks: { orderBy: { checkedAt: "desc" }, take: 30 },
+        incidents: { where: { status: "open" } },
+      },
+    }),
+    prisma.task.groupBy({ by: ["status"], _count: { _all: true } }),
+  ]);
 
   const totalMonitors = monitors.length;
   const upCount = monitors.filter((m) => m.status === "up").length;
   const downCount = monitors.filter((m) => m.status === "down").length;
   const openIncidents = monitors.reduce((sum, m) => sum + m.incidents.length, 0);
+  const tasksOpen =
+    taskCounts.find((t) => t.status === "backlog")?._count?._all ?? 0;
+  const tasksInProgress =
+    taskCounts.find((t) => t.status === "in_progress")?._count?._all ?? 0;
 
   return (
     <div className="space-y-8">
@@ -29,17 +36,25 @@ export default async function Dashboard() {
         </p>
       </section>
 
-      <section className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <StatCard label="Monitors" value={totalMonitors} />
         <StatCard label="Operational" value={upCount} tone="up" />
         <StatCard label="Down" value={downCount} tone="down" />
         <StatCard label="Open incidents" value={openIncidents} tone={openIncidents > 0 ? "down" : "neutral"} />
+        <StatCard label="Tasks: backlog" value={tasksOpen} />
+        <StatCard label="Tasks: in progress" value={tasksInProgress} tone={tasksInProgress > 0 ? "up" : "neutral"} />
       </section>
 
       <section>
         <div className="bg-white rounded-lg border border-zinc-200 overflow-hidden">
-          <div className="px-5 py-3 border-b border-zinc-200 text-sm font-medium text-zinc-700">
-            All monitors
+          <div className="px-5 py-3 border-b border-zinc-200 text-sm font-medium text-zinc-700 flex items-center justify-between">
+            <span>All monitors</span>
+            <Link
+              href="/monitors/new"
+              className="text-xs font-medium text-zinc-500 hover:text-zinc-900"
+            >
+              + new monitor
+            </Link>
           </div>
           {monitors.length === 0 ? (
             <EmptyState />

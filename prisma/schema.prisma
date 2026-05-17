@@ -56,10 +56,27 @@ model Incident {
   @@index([monitorId, status])
 }
 
+model Task {
+  id              String    @id @default(cuid())
+  title           String
+  description     String?
+  status          String    @default("backlog") // backlog | in_progress | done
+  priority        String    @default("medium")  // low | medium | high
+  assignedTo      String?   // null | "agent:claude" | name
+  githubIssueUrl  String?
+  githubPrUrl     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  completedAt     DateTime?
+
+  @@index([status])
+  @@index([createdAt])
+}
+
 model AuditLog {
   id         String   @id @default(cuid())
   actor      String   @default("system")
-  action     String   // monitor.create | monitor.update | monitor.delete | monitor.pause | incident.open | incident.resolve | probe.run
+  action     String   // monitor.* | incident.* | probe.run | task.create | task.update | task.delete | task.delegate | task.complete
   entityType String?  // Monitor | Incident | Check
   entityId   String?
   metadata   String?  // JSON-encoded payload
