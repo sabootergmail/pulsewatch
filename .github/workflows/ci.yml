@@ -1,5 +1,10 @@
 name: ci
 
+# Split into two jobs (pozadavky #7):
+# - unit: fast, blocking. Lint + Vitest + build.
+# - e2e:  Playwright + Chromium. Opt-in via repo variable RUN_E2E=1 so a
+#         tightening Anthropic Max quota doesn't block PRs on every push.
+
 on:
   push:
     branches: [main]
@@ -7,12 +12,13 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  unit:
     name: lint · test · build
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: "file:./ci.db"
       PROBE_SECRET: "ci-secret"
+      TICKETS_API_TOKEN: "ci-token"
     steps:
       - uses: actions/checkout@v4
 
@@ -33,8 +39,42 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Unit tests
+      - name: Unit + integration tests
         run: npm test
 
       - name: Production build
         run: npx next build
+
+  e2e:
+    name: playwright e2e
+    if: vars.RUN_E2E == '1'
+    runs-on: ubuntu-latest
+    needs: [unit]
+    env:
+      DATABASE_URL: "file:./prisma/test.db"
+      PROBE_SECRET: "e2e-secret"
+      TICKETS_API_TOKEN: "e2e-token"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright
+        run: npm run e2e
+
+      - name: Upload HTML report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 14

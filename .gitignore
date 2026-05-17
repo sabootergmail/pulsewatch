@@ -54,5 +54,12 @@ next-env.d.ts
 /prisma/dev.db-journal
 /prisma/build-snapshot.db
 /prisma/snapshot.db
+/prisma/test.db
+/prisma/test.db-journal
+
+# Playwright
+/playwright-report
+/test-results
+/coverage
 
 .vercel

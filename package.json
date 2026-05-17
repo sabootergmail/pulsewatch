@@ -9,6 +9,9 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "e2e": "playwright test",
+    "e2e:install": "playwright install --with-deps chromium",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
@@ -28,10 +31,12 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^4.1.6",
     "@vitest/ui": "^4.1.6",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
