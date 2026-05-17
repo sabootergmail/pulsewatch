@@ -10,6 +10,9 @@ when cutting a release and tagging it.
 
 ## [Unreleased]
 
+### Added
+- Fire-and-forget Beeceptor webhook (`BEECEPTOR_HOOK_URL`) on `incident.open` events; silent no-op when env var is absent (`cmpa1avwl000004jp9jzt6d1f`)
+
 ## [0.1.1] — 2026-05-17
 
 ### Added

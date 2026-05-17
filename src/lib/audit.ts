@@ -27,7 +27,8 @@ export type AuditAction =
   | "rollback.smoke_passed"
   | "rollback.smoke_failed"
   | "rollback.failed"
-  | "maintenance.checks_pruned";
+  | "maintenance.checks_pruned"
+  | "incident.webhook_sent";
 
 export type AuditEntry = {
   action: AuditAction;
