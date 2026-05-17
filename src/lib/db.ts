@@ -3,8 +3,10 @@ import path from "node:path";
 import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 
+type ExtendedPrismaClient = ReturnType<typeof createClient>;
+
 declare global {
-  var __prisma: PrismaClient | undefined;
+  var __prisma: ExtendedPrismaClient | undefined;
 }
 
 /**
@@ -29,13 +31,39 @@ function resolveDbPath(): string {
   return tmpPath;
 }
 
-function createClient(): PrismaClient {
+function createClient() {
   const filename = resolveDbPath();
   const adapter = new PrismaBetterSqlite3({ url: `file:${filename}` });
-  return new PrismaClient({ adapter });
+  const client = new PrismaClient({ adapter });
+
+  // AuditLog is append-only by contract (pozadavky #5, #8). Enforce it at
+  // the Prisma layer so a misbehaving caller can't silently rewrite history.
+  // create/createMany pass through; update/delete/upsert throw.
+  return client.$extends({
+    name: "audit-log-append-only",
+    query: {
+      auditLog: {
+        update() {
+          throw new Error("AuditLog is append-only — update is not permitted");
+        },
+        updateMany() {
+          throw new Error("AuditLog is append-only — updateMany is not permitted");
+        },
+        upsert() {
+          throw new Error("AuditLog is append-only — upsert is not permitted");
+        },
+        delete() {
+          throw new Error("AuditLog is append-only — delete is not permitted");
+        },
+        deleteMany() {
+          throw new Error("AuditLog is append-only — deleteMany is not permitted");
+        },
+      },
+    },
+  });
 }
 
-export const prisma: PrismaClient = global.__prisma ?? createClient();
+export const prisma: ExtendedPrismaClient = global.__prisma ?? createClient();
 
 if (process.env.NODE_ENV !== "production") {
   global.__prisma = prisma;

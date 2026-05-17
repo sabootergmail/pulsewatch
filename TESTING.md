@@ -22,19 +22,23 @@ that E2E can't see clearly.
 
 Run: `npm run e2e` (boots `next dev` against `./prisma/test.db`).
 
-| Scenario file                       | Covers                                                            |
-|-------------------------------------|-------------------------------------------------------------------|
-| `e2e/task-lifecycle.spec.ts`        | Create-task happy path; release_approval gate button visibility   |
+| Scenario file                          | Covers                                                                                                  |
+|----------------------------------------|---------------------------------------------------------------------------------------------------------|
+| `e2e/task-lifecycle.spec.ts`           | Create-task happy path; release_approval gate button visibility                                         |
+| `e2e/monitor-lifecycle.spec.ts`        | Create monitor → probe via `/api/probe` → assert status=Operational + latency caption + audit entries  |
+| `e2e/release-approval.spec.ts`         | Task → REST `request_release` simulating the agent → release_approval card with **Approve & deploy** appears + originating task transitions out of backlog; plus 401 auth contract |
 
 ### Unit / integration (Vitest)
 
 Run: `npm test`.
 
-| File                                  | Covers                                                       |
-|---------------------------------------|--------------------------------------------------------------|
-| `tests/probe.test.ts`                 | `probe()` HTTP contract: success / wrong status / network error / timeout |
-| `tests/probe-state-machine.test.ts`   | `runProbeForMonitor` incident transitions: ok→ok, ok→down, down→down, down→up, paused |
-| `tests/api-tickets.test.ts`           | `/api/tickets` Bearer-token auth contract + body validation  |
+| File                                  | Covers                                                                                  |
+|---------------------------------------|-----------------------------------------------------------------------------------------|
+| `tests/probe.test.ts`                 | `probe()` HTTP contract: success / wrong status / network error / timeout               |
+| `tests/probe-state-machine.test.ts`   | `runProbeForMonitor` incident transitions: ok→ok, ok→down, down→down, down→up, paused   |
+| `tests/api-tickets.test.ts`           | `/api/tickets` Bearer-token auth contract + body validation                             |
+| `tests/audit-invariant.test.ts`       | AuditLog append-only Prisma extension — create passes, update/delete/upsert throw       |
+| `tests/agent-stats.test.ts`           | `getAgentStats` analytics: 24h/7d throughput, success rate, avg ticket→done, timestamps |
 
 Coverage:
 
@@ -50,14 +54,10 @@ has a named test", not a percentage.
 
 | Layer | Scenario                                  | Status |
 |-------|-------------------------------------------|--------|
-| E2E   | Monitor lifecycle (create + probe + audit) | TODO — needs a local mock HTTP server in setup so probes don't hit the real internet |
-| E2E   | Incident open/close (mocked endpoint 500→200) | TODO — same setup as above |
-| E2E   | Full ticket → release_approval flow (via REST mocks) | TODO |
-| E2E   | Autonomous rollback path                  | TODO |
-| Integ | `/api/probe` auth + idempotence           | TODO |
+| E2E   | Incident open/close (mocked endpoint 500→200) | TODO — needs a local mock HTTP server in setup |
+| E2E   | Autonomous rollback path                  | TODO — exercised via `release-verify.yml` in CI; local fake-Vercel mock not yet wired |
+| Integ | `/api/probe` idempotence under double-fire | TODO |
 | Integ | `/api/health` 503 path when DB unreachable | TODO |
-| Unit  | Audit log append-only invariant           | TODO (would require Prisma middleware or DB-level CHECK) |
-| Unit  | `getAgentStats` against seeded fixture    | TODO |
 
 Each TODO is a delegate-to-Claude candidate — a self-contained ticket that
 would round-trip cleanly through the agent pipeline.
