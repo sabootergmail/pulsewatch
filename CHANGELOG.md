@@ -10,6 +10,8 @@ when cutting a release and tagging it.
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-05-17
+
 ### Added
 - Multi-agent pipeline scaffolding under `.claude/agents/` (architect /
   implementer / reviewer / release-ops role prompts).
