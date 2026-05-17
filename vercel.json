@@ -1,9 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "comment": "Hobby plan limits crons to once-per-day. On Pro, swap schedule to */1 * * * *. GitHub Actions probe.yml gives us 5-minute cadence on Hobby.",
   "crons": [
     {
-      "path": "/api/probe?secret=$PROBE_SECRET",
-      "schedule": "* * * * *"
+      "path": "/api/probe",
+      "schedule": "0 6 * * *"
     }
   ]
 }
