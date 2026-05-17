@@ -59,6 +59,11 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Grant the orchestrator the tools it needs to actually do the work:
+          # Task (spawn subagents), Edit/Write/Read/Glob/Grep (code), Bash
+          # (git, npm, gh CLI), WebFetch (docs). Without this, the action's
+          # default tool whitelist denies every actionable call.
+          claude_args: --allowed-tools "Task,Edit,Write,Read,Glob,Grep,Bash,WebFetch,WebSearch"
           prompt: |
             You are the **Orchestrator** in PulseWatch's 4-role multi-agent
             pipeline. The other roles live in `.claude/agents/*.md` and are
