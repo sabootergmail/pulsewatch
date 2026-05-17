@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { formatDuration, formatRelative } from "@/lib/formatters";
 import type { AgentStats } from "@/lib/agentStats";
 
@@ -12,12 +13,12 @@ export function AgentPerformance({ stats }: { stats: AgentStats }) {
           </p>
         </div>
         {stats.pendingApproval > 0 && (
-          <a
+          <Link
             href="/tasks"
             className="text-xs font-medium px-2.5 py-1 rounded-full bg-violet-100 text-violet-700 hover:bg-violet-200"
           >
             {stats.pendingApproval} waiting for approval →
-          </a>
+          </Link>
         )}
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px bg-zinc-200">
