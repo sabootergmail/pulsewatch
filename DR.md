@@ -32,6 +32,65 @@ Env vars required on Vercel:
 - `TURSO_DATABASE_URL` — e.g. `libsql://pulsewatch-xxxxx.turso.io`
 - `TURSO_AUTH_TOKEN` — token from `turso db tokens create pulsewatch`
 
+## Rollback levels (per pozadavky #8)
+
+PulseWatch supports three rollback levels, each with a different scope and
+cost. All are recorded in the `AuditLog` and create a `rollback` ticket.
+
+| Level | Scope            | Mechanism                                       | Use case                              | Duration |
+|-------|------------------|-------------------------------------------------|---------------------------------------|----------|
+| **L1** | Code only       | Vercel promote previous deployment              | Smoke fail, acute UI bug              | ~30 s    |
+| **L2** | Code + DB       | Vercel promote + Turso point-in-time restore    | Data corruption, bad migration        | 1–5 min  |
+| **L3** | Full revert     | `git revert <sha>` PR through agent pipeline    | Audit-trail preferred over speed      | 5–15 min |
+
+### Initiating rollbacks
+
+- **Autonomous (L1 only).** The `release-verify.yml` workflow detects a
+  failed post-deploy smoke test and calls Vercel's promote API for the
+  previous deployment. No human required — autonomy is the safety net.
+- **GUI (L1/L2/L3).** Open `/releases`, click **Rollback** on the row, fill
+  the form (level, reason, PITR timestamp for L2). Confirmation creates the
+  rollback ticket and audit entries.
+
+### L1 — Code-only
+
+```
+Backend:    src/lib/rollback.ts → executeL1()
+API:        POST https://api.vercel.com/v10/projects/pulsewatch/promote/<deploymentId>
+Auth:       VERCEL_TOKEN env var
+Status:     working when VERCEL_TOKEN is set; otherwise rollback is recorded
+            in the audit log but Vercel is not actually promoted.
+```
+
+### L2 — Code + DB PITR
+
+```
+1. Lookup target release (the one before the failing one).
+2. Turso point-in-time restore to the chosen timestamp:
+   POST https://api.turso.tech/v1/organizations/<org>/databases/<name>/restore
+   { "timestamp": "<ISO8601>" }
+3. Wait for new DB to be ready, capture its connection URL.
+4. Update Vercel env DATABASE_URL to the new URL.
+5. Trigger Vercel redeploy of the previous code deployment.
+6. Audit + smoke test.
+```
+
+**Status:** scaffolded in `src/lib/rollback.ts → executeL2()` but not wired
+end-to-end — Turso is not yet provisioned. The audit entry is still
+recorded so the operator has a paper trail.
+
+### L3 — Full revert PR
+
+```
+1. Open a `git revert <release-sha>` PR via the GitHub API.
+2. The PR enters the regular agent pipeline (Reviewer, release_approval).
+3. Once the user approves the release_approval, the revert is merged and
+   deployed like any other release.
+```
+
+**Status:** scaffolded but errors with a clear message when invoked. The
+PR-opening implementation is a candidate first task for the agent pipeline.
+
 ## Backup strategy
 
 Turso has **point-in-time recovery (PITR)** built in (free tier: up to 24 h

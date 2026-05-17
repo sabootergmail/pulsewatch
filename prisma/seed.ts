@@ -53,6 +53,31 @@ async function main() {
     console.log(`seeded task: ${t.title}`);
   }
 
+  // Demo release history so /releases isn't empty
+  const releaseSeeds = [
+    {
+      version: "0.2.0",
+      gitSha: "de97221b3e4c5a8d9f1027a5c98b1e7d3a82f49d",
+      vercelDeployUrl: "https://pulsewatch-de97221-sabooter-7360s-projects.vercel.app",
+      status: "live",
+      smokeTestStatus: "passed",
+    },
+    {
+      version: "0.1.0",
+      gitSha: "94d28080a7c1b8e0a7f2d3b9c4e6a8d5f3df99de",
+      vercelDeployUrl: "https://pulsewatch-94d2808-sabooter-7360s-projects.vercel.app",
+      status: "previous",
+      smokeTestStatus: "passed",
+      deployedAt: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4 h ago
+    },
+  ];
+  for (const r of releaseSeeds) {
+    const existing = await prisma.release.findFirst({ where: { version: r.version } });
+    if (existing) continue;
+    await prisma.release.create({ data: r });
+    console.log(`seeded release: v${r.version}`);
+  }
+
   // Demo release_approval ticket so the kanban shows the human-gate flow at a glance
   const demoReleaseTitle = "Release: dark mode toggle";
   const existingRelease = await prisma.task.findFirst({ where: { title: demoReleaseTitle } });

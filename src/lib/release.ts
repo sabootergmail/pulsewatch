@@ -151,8 +151,23 @@ export async function approveRelease(id: string) {
     metadata: { prNumber: task.githubPrNumber },
   });
 
+  // Demote any previous "live" releases and record this one
+  await prisma.release.updateMany({
+    where: { status: "live" },
+    data: { status: "previous" },
+  });
+  const release = await prisma.release.create({
+    data: {
+      version: process.env.npm_package_version ?? "0.0.0",
+      gitSha: process.env.VERCEL_GIT_COMMIT_SHA ?? "local",
+      vercelDeployUrl: `https://pulsewatch-${task.githubPrNumber ?? "main"}.vercel.app`,
+      sourceTaskId: task.relatedTaskId ?? id,
+      smokeTestStatus: "pending",
+    },
+  });
+
   logWith({ event: "release.merge", ticket_id: id, role: "release-ops" }).info(
-    { pr: task.githubPrNumber },
+    { pr: task.githubPrNumber, releaseId: release.id },
     "release merged",
   );
   await notify("release.merge", {
@@ -163,6 +178,7 @@ export async function approveRelease(id: string) {
 
   revalidatePath("/tasks");
   revalidatePath(`/tasks/${id}`);
+  revalidatePath("/releases");
 }
 
 /**

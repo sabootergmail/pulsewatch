@@ -49,6 +49,29 @@ You **must** request changes if any of the following:
 6. Any test is skipped without justification, any type weakened to `any`,
    any error handler swallowing exceptions silently.
 7. The PR uses `git push --no-verify`, `--force`, or amends a published commit.
+8. **The migration is destructive without an expand/contract plan.** This
+   one is non-negotiable — a destructive migration breaks fast L1 rollback.
+   See the table below.
+
+## Migration policy (per pozadavky #8)
+
+The L1 rollback path (Vercel promote previous deploy) is only safe if the
+*previous code* can read the *current schema*. Destructive migrations
+break that invariant and **must** be split across multiple releases:
+
+| Operation                       | Safe in one PR? | Required path                                                       |
+|---------------------------------|-----------------|---------------------------------------------------------------------|
+| Add column (nullable / default) | ✅              | one PR                                                              |
+| Add table                       | ✅              | one PR                                                              |
+| Add index                       | ✅              | one PR                                                              |
+| Rename column                   | ❌              | (1) add new col; (2) backfill + dual-write; (3) drop old col        |
+| Drop column                     | ❌              | (1) stop writing/reading; (2) drop in a later release               |
+| Change column type              | ❌              | (1) add new col with new type; (2) backfill; (3) switch reads; (4) drop old |
+
+If the PR's `prisma/schema.prisma` diff shows any operation from the right
+column without the corresponding 2- or 3-release plan in `spec.md`,
+**request changes** with severity `blocker`. The Architect should have
+sequenced this — flag both the Architect's spec and the Implementer's diff.
 
 You **may** approve with `nit`-level findings (style, naming, comments) as long as no `blocker` or `high` findings exist.
 

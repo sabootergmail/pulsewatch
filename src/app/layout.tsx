@@ -23,6 +23,7 @@ export default function RootLayout({
             <nav className="flex items-center gap-5 text-sm text-zinc-600">
               <Link href="/" className="hover:text-zinc-900">Dashboard</Link>
               <Link href="/tasks" className="hover:text-zinc-900">Tasks</Link>
+              <Link href="/releases" className="hover:text-zinc-900">Releases</Link>
               <Link href="/incidents" className="hover:text-zinc-900">Incidents</Link>
               <Link href="/audit" className="hover:text-zinc-900">Audit log</Link>
             </nav>

@@ -4,6 +4,10 @@
     {
       "path": "/api/probe",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/maintenance/prune-checks",
+      "schedule": "0 3 * * *"
     }
   ]
 }

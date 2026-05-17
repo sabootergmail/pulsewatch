@@ -74,6 +74,9 @@ model Task {
   approvedAt      DateTime?
   rolledBackAt    DateTime?
   rollbackReason  String?
+  rollbackLevel    String?  // L1 (code) | L2 (code+db PITR) | L3 (git revert)
+  rollbackTargetId String? // Release.id we're rolling back TO
+  rollbackScope    String? // "code" | "code+db" | "full"
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   completedAt     DateTime?
@@ -82,6 +85,20 @@ model Task {
   @@index([type])
   @@index([createdAt])
   @@index([relatedTaskId])
+}
+
+model Release {
+  id              String    @id @default(cuid())
+  version         String    // "0.2.0" (semver from package.json at release time)
+  gitSha          String
+  deployedAt      DateTime  @default(now())
+  status          String    @default("live")  // live | previous | rolled_back
+  vercelDeployUrl String
+  sourceTaskId    String?   // originating release_approval task
+  smokeTestStatus String?   // passed | failed | pending
+
+  @@index([deployedAt])
+  @@index([status])
 }
 
 model AuditLog {

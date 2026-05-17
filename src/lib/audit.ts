@@ -19,12 +19,20 @@ export type AuditAction =
   | "release.merge"
   | "release.smoke_pass"
   | "release.smoke_fail"
-  | "release.rollback";
+  | "release.rollback"
+  | "rollback.initiated"
+  | "rollback.l1_completed"
+  | "rollback.l2_completed"
+  | "rollback.l3_completed"
+  | "rollback.smoke_passed"
+  | "rollback.smoke_failed"
+  | "rollback.failed"
+  | "maintenance.checks_pruned";
 
 export type AuditEntry = {
   action: AuditAction;
   actor?: string;
-  entityType?: "Monitor" | "Incident" | "Check" | "Task";
+  entityType?: "Monitor" | "Incident" | "Check" | "Task" | "Release";
   entityId?: string;
   metadata?: Record<string, unknown>;
 };
