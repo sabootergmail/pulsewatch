@@ -8,22 +8,40 @@ const adapter = new PrismaBetterSqlite3({ url: `file:${filename}` });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  const seeds = [
-    { name: "Google", url: "https://www.google.com", intervalSeconds: 60 },
-    { name: "GitHub API", url: "https://api.github.com", intervalSeconds: 60 },
-    { name: "Example.com", url: "https://example.com", intervalSeconds: 120 },
-    {
-      name: "Demo: always fails",
-      url: "https://this-domain-does-not-exist.invalid",
-      intervalSeconds: 60,
-      timeoutMs: 3000,
-    },
-  ];
+  // E2E_SEED=1 (set by scripts/test-db-reset.mjs) skips external monitor seeds.
+  // Reason: Playwright's monitor-lifecycle spec POSTs /api/probe, which runs
+  // runDueProbes() against every non-paused monitor. With 4 external URLs in
+  // the seed, that cascade of 3–5s fetches under Next.js dev (Turbopack)
+  // exhausts the SWC worker pool and renders runtime errors. Tests want a
+  // single-monitor universe so they can probe exactly the one they created.
+  const isE2E = process.env.E2E_SEED === "1";
+
+  const seeds = isE2E
+    ? []
+    : [
+        { name: "Google", url: "https://www.google.com", intervalSeconds: 60 },
+        { name: "GitHub API", url: "https://api.github.com", intervalSeconds: 60 },
+        { name: "Example.com", url: "https://example.com", intervalSeconds: 120 },
+        {
+          name: "Demo: always fails",
+          url: "https://this-domain-does-not-exist.invalid",
+          intervalSeconds: 60,
+          timeoutMs: 3000,
+        },
+      ];
   for (const s of seeds) {
     const existing = await prisma.monitor.findFirst({ where: { url: s.url } });
     if (existing) continue;
     await prisma.monitor.create({ data: s });
     console.log(`seeded monitor: ${s.name}`);
+  }
+
+  // Task / release / release_approval seeds suppressed by default — the demo
+  // works better with a clean kanban that the user fills via real agent runs.
+  // Set SEED_DEMO_TASKS=1 locally to re-enable.
+  if (process.env.SEED_DEMO_TASKS !== "1") {
+    console.log("skipping task/release demo seeds (SEED_DEMO_TASKS != 1)");
+    return;
   }
 
   const taskSeeds = [
@@ -53,7 +71,6 @@ async function main() {
     console.log(`seeded task: ${t.title}`);
   }
 
-  // Demo release history so /releases isn't empty
   const releaseSeeds = [
     {
       version: "0.2.0",
@@ -78,7 +95,6 @@ async function main() {
     console.log(`seeded release: v${r.version}`);
   }
 
-  // Demo release_approval ticket so the kanban shows the human-gate flow at a glance
   const demoReleaseTitle = "Release: dark mode toggle";
   const existingRelease = await prisma.task.findFirst({ where: { title: demoReleaseTitle } });
   if (!existingRelease) {

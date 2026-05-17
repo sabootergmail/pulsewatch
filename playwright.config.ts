@@ -31,8 +31,13 @@ export default defineConfig({
     },
   ],
   webServer: {
+    // `--webpack` opts out of Turbopack (Next 16 default). Turbopack spawns
+    // SWC worker threads that collide with pino's worker threads under
+    // parallel Playwright load, surfacing as "Jest worker encountered child
+    // process exceptions" runtime dialogs mid-test. Webpack dev is slower
+    // to start but stable for the E2E suite.
     command:
-      "node scripts/test-db-reset.mjs && next dev --port " + PORT,
+      "node scripts/test-db-reset.mjs && next dev --webpack --port " + PORT,
     url: baseURL,
     timeout: 120_000,
     reuseExistingServer: !process.env.CI,
