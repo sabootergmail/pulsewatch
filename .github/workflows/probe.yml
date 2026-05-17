@@ -1,0 +1,26 @@
+name: probe
+
+# Fallback monitoring scheduler.
+# Vercel Cron handles probing in production, but this workflow gives us a
+# second-source heartbeat: if Vercel is the system that fails, GitHub Actions
+# still wakes the production probe endpoint every 5 minutes. Disaster recovery
+# 101 — don't put the watchman in the building they're watching.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    if: vars.PROBE_URL != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit production probe endpoint
+        env:
+          PROBE_URL: ${{ vars.PROBE_URL }}
+          PROBE_SECRET: ${{ secrets.PROBE_SECRET }}
+        run: |
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $PROBE_SECRET" \
+            "$PROBE_URL" | head -c 2000

@@ -1,0 +1,70 @@
+// PulseWatch — uptime monitoring & incident management
+// SQLite for MVP. Swap provider + DATABASE_URL for Postgres in prod.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Monitor {
+  id              String     @id @default(cuid())
+  name            String
+  url             String
+  method          String     @default("GET")
+  expectedStatus  Int        @default(200)
+  intervalSeconds Int        @default(60)
+  timeoutMs       Int        @default(5000)
+  status          String     @default("unknown") // unknown | up | down | paused
+  paused          Boolean    @default(false)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  lastCheckedAt   DateTime?
+
+  checks    Check[]
+  incidents Incident[]
+
+  @@index([status])
+}
+
+model Check {
+  id          String   @id @default(cuid())
+  monitorId   String
+  monitor     Monitor  @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  status      String   // up | down
+  httpStatus  Int?
+  latencyMs   Int?
+  error       String?
+  checkedAt   DateTime @default(now())
+
+  @@index([monitorId, checkedAt])
+}
+
+model Incident {
+  id          String    @id @default(cuid())
+  monitorId   String
+  monitor     Monitor   @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  status      String    @default("open") // open | resolved
+  startedAt   DateTime  @default(now())
+  resolvedAt  DateTime?
+  cause       String?
+  summary     String?
+
+  @@index([monitorId, status])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actor      String   @default("system")
+  action     String   // monitor.create | monitor.update | monitor.delete | monitor.pause | incident.open | incident.resolve | probe.run
+  entityType String?  // Monitor | Incident | Check
+  entityId   String?
+  metadata   String?  // JSON-encoded payload
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([entityType, entityId])
+}
