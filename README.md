@@ -210,6 +210,18 @@ probes every 5 minutes as a fallback. If either side fails, the other still
 runs. If both fail, the `/api/health` endpoint and the audit log gap make the
 outage obvious.
 
+**Loop closes itself on merge.** The GitHub webhook at
+`/api/webhooks/github` (HMAC-SHA256 with `GITHUB_WEBHOOK_SECRET`) listens
+for `pull_request.closed && merged`. When a release_approval task's PR is
+merged — by the Approve & deploy button, by Release/Ops, or directly on
+GitHub — the webhook closes the release_approval and its originating task.
+No human follow-up needed.
+
+**Release tagging is automated.** After the post-deploy smoke test passes,
+`.github/workflows/release-verify.yml` runs `npm version patch`, promotes
+`[Unreleased]` in `CHANGELOG.md` to the new version, pushes a tag, and
+creates a GitHub Release with auto-generated notes.
+
 ## What's deliberately out of scope (and why)
 
 - **Multi-user RBAC** — single-user MVP. Auth itself is implemented

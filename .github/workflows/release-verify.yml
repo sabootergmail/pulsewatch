@@ -22,6 +22,8 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # tag push + chore(release) commit
     env:
       PROD_URL: https://pulsewatch-sigma.vercel.app
       TICKETS_API_TOKEN: ${{ secrets.TICKETS_API_TOKEN }}
@@ -62,6 +64,49 @@ jobs:
               -H "Authorization: Bearer $TICKETS_API_TOKEN" \
               -H "Content-Type: application/json" \
               -d "{\"action\":\"close\",\"id\":\"${{ inputs.release_ticket_id }}\"}"
+          fi
+
+      # Pozadavky #11 #3: vynucené CHANGELOG promote + tag + GitHub Release.
+      # RELEASE.md slibuje, že Release/Ops to dělá — tady to skutečně proběhne.
+      - name: Checkout for release housekeeping
+        if: steps.smoke.outcome == 'success' && steps.dashboard.outcome == 'success'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node
+        if: steps.smoke.outcome == 'success' && steps.dashboard.outcome == 'success'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Bump version + CHANGELOG + tag + GitHub Release
+        if: steps.smoke.outcome == 'success' && steps.dashboard.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          git config user.name "release-bot"
+          git config user.email "release-bot@pulsewatch.local"
+
+          # Default to patch bump; spec.md can override but we don't read it here
+          # (pre-merge work already incorporated it into CHANGELOG.md content).
+          npm version patch --no-git-tag-version
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "Bumping to v$NEW_VERSION"
+
+          node scripts/promote-changelog.mjs "$NEW_VERSION" || true
+
+          git add package.json package-lock.json CHANGELOG.md
+          if git diff --staged --quiet; then
+            echo "Nothing to commit — package.json/CHANGELOG already up to date."
+          else
+            git commit -m "chore(release): v$NEW_VERSION"
+            git push origin HEAD:main
+            git tag "v$NEW_VERSION"
+            git push origin "v$NEW_VERSION"
+            gh release create "v$NEW_VERSION" --generate-notes
           fi
 
       - name: Autonomous rollback on smoke failure

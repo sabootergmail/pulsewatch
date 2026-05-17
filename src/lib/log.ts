@@ -17,6 +17,7 @@ export type LogContext = {
   event?: string;
   monitor_id?: string;
   incident_id?: string;
+  pr?: number;
 };
 
 export function logWith(ctx: LogContext) {

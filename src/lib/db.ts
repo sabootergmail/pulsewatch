@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaLibSql } from "@prisma/adapter-libsql";
 
 type ExtendedPrismaClient = ReturnType<typeof createClient>;
 
@@ -31,9 +32,29 @@ function resolveDbPath(): string {
   return tmpPath;
 }
 
-function createClient() {
+/**
+ * Driver adapter selection (pozadavky #11 #1):
+ *   - TURSO_DATABASE_URL set → PrismaLibSql (hosted Turso, with PITR per DR.md)
+ *   - otherwise              → PrismaBetterSqlite3 against a local file
+ *
+ * Same Prisma schema both sides — only the adapter changes. The append-only
+ * AuditLog extension (pozadavky #9) is applied to whichever backend ends up
+ * underneath.
+ */
+function createAdapter() {
+  const tursoUrl = process.env.TURSO_DATABASE_URL;
+  if (tursoUrl) {
+    return new PrismaLibSql({
+      url: tursoUrl,
+      authToken: process.env.TURSO_AUTH_TOKEN,
+    });
+  }
   const filename = resolveDbPath();
-  const adapter = new PrismaBetterSqlite3({ url: `file:${filename}` });
+  return new PrismaBetterSqlite3({ url: `file:${filename}` });
+}
+
+function createClient() {
+  const adapter = createAdapter();
   const client = new PrismaClient({ adapter });
 
   // AuditLog is append-only by contract (pozadavky #5, #8). Enforce it at

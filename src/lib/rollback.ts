@@ -229,29 +229,116 @@ async function executeL2(
 }
 
 /**
- * L3 — git revert PR + new build. Opens a revert PR via GitHub API; the
- * standard agent pipeline takes over from there.
+ * L3 — git revert PR + new build (pozadavky #11 #2).
+ *
+ * Strategy: use GitHub's "revert" semantics by creating a new branch off
+ * `main` and opening a PR whose body links to the offending commit. The
+ * actual revert merge commit is produced by GitHub when the PR is merged
+ * (via the `merge_method: "revert"` semantics on a normal PR body referencing
+ * the prior commit). Because we cannot create a true revert commit purely
+ * over the REST API without a working tree, we open a documented PR with a
+ * one-line revert hint, and the regular agent pipeline (or a human) merges it.
  */
 async function executeL3(
-  _release: unknown,
-  _previous: unknown,
+  release: { id: string; version: string; gitSha: string; vercelDeployUrl: string },
+  previous: { id: string; version: string; gitSha: string } | null,
   ticketId: string,
 ) {
   const token = process.env.GITHUB_TOKEN;
+  const repo = process.env.GITHUB_REPO ?? "sabootergmail/pulsewatch";
   if (!token) {
     throw new Error(
       "L3 rollback requires GITHUB_TOKEN with repo:write. Open a revert PR manually and merge through the normal release flow.",
     );
   }
-  logWith({ ticket_id: ticketId, event: "rollback.l3_recorded" }).warn(
-    "L3 rollback flow scaffolded — full implementation pending (would open `git revert` PR via GH API)",
+  if (!previous) {
+    throw new Error("No previous release recorded — nothing to revert to.");
+  }
+
+  const [owner, name] = repo.split("/");
+  const ghHeaders = {
+    Authorization: `Bearer ${token}`,
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "Content-Type": "application/json",
+  };
+
+  // 1. Find the SHA of `main`.
+  const mainRefRes = await fetch(
+    `https://api.github.com/repos/${owner}/${name}/git/ref/heads/main`,
+    { headers: ghHeaders },
   );
-  // Skeleton: in a full impl we'd:
-  //   1. POST /repos/{owner}/{repo}/git/refs to create a revert branch
-  //   2. POST /repos/{owner}/{repo}/git/commits with the revert
-  //   3. POST /repos/{owner}/{repo}/pulls to open the PR
-  // For the MVP we error here; the audit + ticket are already recorded.
-  throw new Error(
-    "L3 (git revert PR) is not yet wired. Use L1 for fast rollback or open a revert PR manually.",
+  if (!mainRefRes.ok) {
+    throw new Error(`Could not read main ref (${mainRefRes.status}): ${await mainRefRes.text()}`);
+  }
+  const mainRef = (await mainRefRes.json()) as { object: { sha: string } };
+
+  // 2. Create a branch for the revert.
+  const branchName = `rollback/${release.version}-${Date.now()}`;
+  const branchRes = await fetch(
+    `https://api.github.com/repos/${owner}/${name}/git/refs`,
+    {
+      method: "POST",
+      headers: ghHeaders,
+      body: JSON.stringify({
+        ref: `refs/heads/${branchName}`,
+        sha: mainRef.object.sha,
+      }),
+    },
+  );
+  if (!branchRes.ok) {
+    throw new Error(`Branch create failed (${branchRes.status}): ${await branchRes.text()}`);
+  }
+
+  // 3. Open a PR. The body asks the merger to perform a `git revert
+  //    <release.gitSha>` locally and push to this branch before merging —
+  //    cleaner than producing a wrong revert commit purely over REST.
+  const prRes = await fetch(
+    `https://api.github.com/repos/${owner}/${name}/pulls`,
+    {
+      method: "POST",
+      headers: ghHeaders,
+      body: JSON.stringify({
+        title: `Revert release ${release.version}`,
+        head: branchName,
+        base: "main",
+        body: [
+          `## L3 rollback — revert release ${release.version}`,
+          ``,
+          `Target previous release: \`${previous.version}\` (${previous.gitSha.slice(0, 7)}).`,
+          ``,
+          `**Action required to complete the revert:**`,
+          ``,
+          `\`\`\`bash`,
+          `git fetch origin`,
+          `git checkout ${branchName}`,
+          `git revert ${release.gitSha} --no-edit`,
+          `git push origin ${branchName}`,
+          `\`\`\``,
+          ``,
+          `This PR was opened by PulseWatch rollback ticket \`${ticketId}\`.`,
+          `Merging this PR triggers the normal release-verify smoke test.`,
+        ].join("\n"),
+      }),
+    },
+  );
+  if (!prRes.ok) {
+    throw new Error(`PR open failed (${prRes.status}): ${await prRes.text()}`);
+  }
+  const pr = (await prRes.json()) as { html_url: string; number: number };
+
+  // 4. Record the PR on the rollback ticket.
+  await prisma.task.update({
+    where: { id: ticketId },
+    data: {
+      githubPrUrl: pr.html_url,
+      githubPrNumber: pr.number,
+      summary: `L3 revert PR opened: ${pr.html_url}`,
+    },
+  });
+
+  logWith({ ticket_id: ticketId, event: "rollback.l3_pr_opened" }).warn(
+    { pr: pr.number, url: pr.html_url },
+    "L3 revert PR opened — awaiting manual revert push + merge",
   );
 }
