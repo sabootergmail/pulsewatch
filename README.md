@@ -9,8 +9,14 @@ area an AI-orchestrated developer can lay down in a single sitting:
 data model, monitoring engine, dashboards, incidents, audit log, tests, CI,
 disaster-recovery heartbeat, and deployment.
 
-[**Live demo →**](https://pulsewatch.vercel.app) (URL appears after first deploy)
-· [Architecture](./ARCHITECTURE.md) · [One-pager](./ONE_PAGER.md)
+[**Live demo →**](https://pulsewatch-sigma.vercel.app) · [Architecture](./ARCHITECTURE.md) · [One-pager](./ONE_PAGER.md) · [GitHub](https://github.com/sabootergmail/pulsewatch)
+
+> **Production note on persistence.** The live demo uses SQLite seeded into
+> the Vercel function bundle and hydrated to `/tmp` on cold start. Each
+> serverless instance has its own copy, so writes from one request may not
+> be visible in the next — fine for the demo, but in production you'd swap
+> `DATABASE_URL` for hosted Postgres (Neon / Vercel Postgres). The schema and
+> client code are identical; only `lib/db.ts` changes one line.
 
 ---
 

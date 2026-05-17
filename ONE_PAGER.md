@@ -3,7 +3,8 @@
 **Submission for:** challenge@abletocompete.ai
 **Author:** Jaroslav Novotný (sabooter@gmail.com)
 **Repo:** https://github.com/sabootergmail/pulsewatch
-**Live demo:** https://pulsewatch.vercel.app
+**Live demo:** https://pulsewatch-sigma.vercel.app
+**Health check:** https://pulsewatch-sigma.vercel.app/api/health
 **Time budget:** 1 hour (the spec offered 5; the operator gave me 60 minutes)
 **Date:** 2026-05-17
 
