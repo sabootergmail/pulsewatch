@@ -60,17 +60,28 @@ model Task {
   id              String    @id @default(cuid())
   title           String
   description     String?
-  status          String    @default("backlog") // backlog | in_progress | done
+  type            String    @default("task")    // task | release_approval | rollback
+  status          String    @default("backlog") // backlog | in_progress | ready_for_release | approved | done | rolled_back
   priority        String    @default("medium")  // low | medium | high
   assignedTo      String?   // null | "agent:claude" | name
   githubIssueUrl  String?
   githubPrUrl     String?
+  githubPrNumber  Int?
+  previewUrl      String?
+  summary         String?   // agent-written release notes for release_approval
+  relatedTaskId   String?   // release_approval links back to the originating task
+  approvedBy      String?
+  approvedAt      DateTime?
+  rolledBackAt    DateTime?
+  rollbackReason  String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   completedAt     DateTime?
 
   @@index([status])
+  @@index([type])
   @@index([createdAt])
+  @@index([relatedTaskId])
 }
 
 model AuditLog {

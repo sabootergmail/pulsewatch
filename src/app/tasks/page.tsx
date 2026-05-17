@@ -5,15 +5,15 @@ import { TaskCard } from "@/components/TaskCard";
 export const dynamic = "force-dynamic";
 
 const COLUMNS = [
-  { id: "backlog", label: "Backlog", tone: "bg-zinc-50" },
-  { id: "in_progress", label: "In progress", tone: "bg-amber-50" },
-  { id: "done", label: "Done", tone: "bg-emerald-50" },
+  { id: "backlog", label: "Backlog", tone: "bg-zinc-50", statuses: ["backlog"] },
+  { id: "in_progress", label: "In progress", tone: "bg-amber-50", statuses: ["in_progress", "ready_for_release"] },
+  { id: "done", label: "Done", tone: "bg-emerald-50", statuses: ["done", "approved", "rolled_back"] },
 ] as const;
 
 export default async function TasksPage() {
   const tasks = await prisma.task.findMany({ orderBy: [{ createdAt: "desc" }] });
   const grouped = Object.fromEntries(
-    COLUMNS.map((c) => [c.id, tasks.filter((t) => t.status === c.id)]),
+    COLUMNS.map((c) => [c.id, tasks.filter((t) => (c.statuses as readonly string[]).includes(t.status))]),
   );
 
   return (

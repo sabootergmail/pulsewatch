@@ -52,6 +52,27 @@ async function main() {
     await prisma.task.create({ data: t });
     console.log(`seeded task: ${t.title}`);
   }
+
+  // Demo release_approval ticket so the kanban shows the human-gate flow at a glance
+  const demoReleaseTitle = "Release: dark mode toggle";
+  const existingRelease = await prisma.task.findFirst({ where: { title: demoReleaseTitle } });
+  if (!existingRelease) {
+    await prisma.task.create({
+      data: {
+        type: "release_approval",
+        title: demoReleaseTitle,
+        summary:
+          "Adds a sun/moon icon in the header that toggles dark mode. Tested locally; CI green; preview deployed.",
+        status: "ready_for_release",
+        priority: "high",
+        assignedTo: "agent:claude",
+        githubPrUrl: "https://github.com/sabootergmail/pulsewatch/pull/1",
+        githubPrNumber: 1,
+        previewUrl: "https://pulsewatch-git-dark-mode-sabooter-7360s-projects.vercel.app",
+      },
+    });
+    console.log(`seeded release_approval: ${demoReleaseTitle}`);
+  }
 }
 
 main()

@@ -1,0 +1,93 @@
+name: release-verify
+
+# Post-deploy smoke test + autonomous rollback.
+# Fires on every push to main (i.e. after a release merge), waits for Vercel
+# to finish its prod deploy, then hits key endpoints. If the smoke test
+# fails within 60 s of the deploy going live, we call `vercel rollback`
+# automatically — no approval required, rollback IS the safety net.
+#
+# The release_approval ticket in PulseWatch is updated through the tickets
+# REST API so the audit trail stays single-source.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      release_ticket_id:
+        description: "Optional: PulseWatch release_approval ticket id"
+        required: false
+        type: string
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      PROD_URL: https://pulsewatch-sigma.vercel.app
+      TICKETS_API_TOKEN: ${{ secrets.TICKETS_API_TOKEN }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - name: Wait for Vercel deploy to settle
+        run: sleep 60
+
+      - name: Smoke test — health endpoint
+        id: smoke
+        continue-on-error: true
+        run: |
+          set -e
+          STATUS=$(curl -s -o /tmp/health.json -w "%{http_code}" "$PROD_URL/api/health")
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          cat /tmp/health.json
+          if [ "$STATUS" != "200" ]; then
+            echo "Health check failed with status $STATUS"
+            exit 1
+          fi
+
+      - name: Smoke test — dashboard renders
+        if: steps.smoke.outcome == 'success'
+        id: dashboard
+        continue-on-error: true
+        run: |
+          set -e
+          curl --fail --silent "$PROD_URL" > /tmp/dashboard.html
+          grep -q "PulseWatch" /tmp/dashboard.html
+          grep -q "Status overview" /tmp/dashboard.html
+
+      - name: Mark release verified
+        if: steps.smoke.outcome == 'success' && steps.dashboard.outcome == 'success'
+        run: |
+          echo "✅ Smoke tests passed. Release verified."
+          if [ -n "${{ inputs.release_ticket_id }}" ] && [ -n "$TICKETS_API_TOKEN" ]; then
+            curl --fail --silent -X POST "$PROD_URL/api/tickets" \
+              -H "Authorization: Bearer $TICKETS_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"action\":\"close\",\"id\":\"${{ inputs.release_ticket_id }}\"}"
+          fi
+
+      - name: Autonomous rollback on smoke failure
+        if: steps.smoke.outcome != 'success' || steps.dashboard.outcome != 'success'
+        run: |
+          set -e
+          echo "❌ Smoke test failed. Initiating autonomous rollback."
+          REASON="Post-deploy smoke test failed (health=${{ steps.smoke.outcome }}, dashboard=${{ steps.dashboard.outcome }})"
+
+          if [ -n "$VERCEL_TOKEN" ]; then
+            npm install -g vercel
+            # Find the previous good deploy and roll back to it
+            DEPLOYS=$(vercel ls pulsewatch --token "$VERCEL_TOKEN" --json | head -200)
+            PREV_URL=$(echo "$DEPLOYS" | sed -n '2p' | awk '{print $2}')
+            if [ -n "$PREV_URL" ]; then
+              vercel rollback "$PREV_URL" --token "$VERCEL_TOKEN" --yes || true
+            fi
+          else
+            echo "VERCEL_TOKEN not set — skipping actual rollback, recording intent only."
+          fi
+
+          if [ -n "${{ inputs.release_ticket_id }}" ] && [ -n "$TICKETS_API_TOKEN" ]; then
+            curl --fail --silent -X POST "$PROD_URL/api/tickets" \
+              -H "Authorization: Bearer $TICKETS_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"action\":\"record_rollback\",\"releaseTaskId\":\"${{ inputs.release_ticket_id }}\",\"reason\":\"$REASON\"}"
+          fi
+
+          exit 1

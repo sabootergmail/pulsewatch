@@ -13,7 +13,13 @@ export type AuditAction =
   | "task.update"
   | "task.delete"
   | "task.delegate"
-  | "task.complete";
+  | "task.complete"
+  | "release.request"
+  | "release.approve"
+  | "release.merge"
+  | "release.smoke_pass"
+  | "release.smoke_fail"
+  | "release.rollback";
 
 export type AuditEntry = {
   action: AuditAction;
