@@ -86,7 +86,12 @@ export async function notifyBeeceptor(
   incident: BeeceptorIncident,
 ): Promise<void> {
   const hookUrl = process.env.BEECEPTOR_HOOK_URL;
+  log.info(
+    { hookUrlPresent: Boolean(hookUrl), hookUrlLen: hookUrl?.length ?? 0 },
+    "notifyBeeceptor: entered",
+  );
   if (!hookUrl) return;
+  log.info({ hookUrl }, "notifyBeeceptor: posting");
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 3000);
